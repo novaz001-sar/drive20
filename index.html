@@ -1062,7 +1062,10 @@
         let previousGameState = '';
         let previousGridPos = null;
 
-        const keyState = { 'a': false, 'd': false, 'e': false, 'w': false, 'escape': false };
+        const keyState = {
+            'a': false, 'd': false, 'w': false, 's': false, 'escape': false,
+            'arrowup': false, 'arrowdown': false, 'arrowleft': false, 'arrowright': false
+        };
         let keyDebounce = false;
 
         let wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, floorMaterial, landmarkMaterial, goalWallMaterial;
@@ -1111,7 +1114,7 @@
                 prompt_options: (options) => `可选方向: ${options.join(' | ')}`,
                 hint_ingame_controls: "提示：点击左上角 ⚙️ 更改设置，按 [ESC] 可打开菜单。",
                 hint_driving_start: "提示：黄色箭头指的是没有墙阻挡的可选方向，不是导航方向。",
-                prompt_dead_end: "遇到死胡同！连续按两次 [A] 或 [D] 键可以掉头。",
+                prompt_dead_end: "遇到死胡同！掉头请按 [A/←] 或 [D/→]。",
                 prompt_near_goal: "再往前一步就到达目的地了！",
                 waypoint_hud: (next, total) => `寻找路标: ${next} / ${total}`,
                 prompt_goal_locked: "请先按顺序访问所有路标！",
@@ -1143,7 +1146,7 @@
                 prompt_options: (options) => `Available moves: ${options.join(' | ')}`,
                 hint_ingame_controls: "Hint: Click the ⚙️ in the top-left to change settings. Press [ESC] to open the menu.",
                 hint_driving_start: "Hint: Yellow arrows indicate available directions without walls, not a navigation path.",
-                prompt_dead_end: "Dead end! Press [A] or [D] twice to turn around.",
+                prompt_dead_end: "Dead end! Press [A/←] or [D/→] to turn around.",
                 prompt_near_goal: "One more step to the destination!",
                 waypoint_hud: (next, total) => `Find Waypoint: ${next} / ${total}`,
                 prompt_goal_locked: "Please visit all waypoints in order first!",
@@ -1380,7 +1383,9 @@
             carSizeSlider.addEventListener('input', (e) => {
                 thirdPersonControls.carScale = parseFloat(e.target.value);
                 if (playerCarModel) {
-                    playerCarModel.scale.set(thirdPersonControls.carScale, thirdPersonControls.carScale, thirdPersonControls.carScale);
+                    const maxCarScale = (TILE_SIZE * 0.7) / (TILE_SIZE * 0.42); // 70% of aisle width
+                    const newScale = Math.min(parseFloat(e.target.value), maxCarScale);
+                    playerCarModel.scale.set(newScale, newScale, newScale);
                 }
             });
 
@@ -1868,9 +1873,9 @@
             
             prompt.style.display = 'inline-block';
             const options = [];
-            if (availableTurns.forward) options.push(`${lang.forward} [W]`);
-            if (availableTurns.left) options.push(`${lang.turnLeft} [A]`);
-            if (availableTurns.right) options.push(`${lang.turnRight} [D]`);
+            if (availableTurns.forward) options.push(`${lang.forward} [W/↑]`);
+            if (availableTurns.left) options.push(`${lang.turnLeft} [A/←]`);
+            if (availableTurns.right) options.push(`${lang.turnRight} [D/→]`);
 
             if (!availableTurns.forward && !availableTurns.left && !availableTurns.right) {
                 prompt.textContent = lang.prompt_dead_end;
@@ -1881,17 +1886,18 @@
             }
         }
 
-        function setupMove() {
+        function setupMove(direction = 'forward') {
             const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
             const gridPos = worldToGrid(player.position);
-            const moveVector = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation);
+            const moveZ = direction === 'forward' ? -1 : 1;
+            const moveVector = new THREE.Vector3(0, 0, moveZ).applyEuler(player.rotation);
             const nextGridX = gridPos.x + Math.round(moveVector.x);
             const nextGridZ = gridPos.z + Math.round(moveVector.z);
 
             const isGoalNext = (nextGridX === level.goal.x && nextGridZ === level.goal.z);
             const isGoalLocked = currentLevelState.isWaypointMode && currentLevelState.nextWaypoint <= currentLevelState.totalWaypoints;
 
-            if (isGoalNext && !isGoalLocked) {
+            if (direction === 'forward' && isGoalNext && !isGoalLocked) {
                 showTemporaryMessage(translations[currentLanguage].prompt_near_goal, 2500);
             }
 
@@ -2087,14 +2093,16 @@
             keyDebounce = true;
             setTimeout(() => { keyDebounce = false; }, 100);
 
-            if (key === 'd') {
+            if (key === 'd' || key === 'arrowright') {
                 targetRotation.y -= Math.PI / 2;
                 gameState = 'TURNING';
-            } else if (key === 'a') {
+            } else if (key === 'a' || key === 'arrowleft') {
                 targetRotation.y += Math.PI / 2;
                 gameState = 'TURNING';
-            } else if (key === 'w') {
-                setupMove();
+            } else if (key === 'w' || key === 'arrowup') {
+                setupMove('forward');
+            } else if (key === 's' || key === 'arrowdown') {
+                setupMove('backward');
             }
         }
         

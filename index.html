@@ -833,6 +833,14 @@
                     <option value="off" data-lang-zh="关闭" data-lang-en="Off">关闭</option>
                 </select>
             </div>
+            <!-- Settings group for toggling directional arrows (yellow arrow guidance) -->
+            <div class="settings-group">
+                <label for="arrow-toggle" data-lang-zh="方向箭头" data-lang-en="Yellow Arrows">方向箭头</label>
+                <select id="arrow-toggle">
+                    <option value="on" data-lang-zh="开启" data-lang-en="On">开启</option>
+                    <option value="off" data-lang-zh="关闭" data-lang-en="Off">关闭</option>
+                </select>
+            </div>
              <div class="settings-group texture-settings-group">
                 <label data-lang-zh="纹理设置" data-lang-en="Texture Settings">纹理设置</label>
                 <div class="texture-input-row">
@@ -1463,6 +1471,23 @@
                 document.getElementById('initial-language-select').value = currentLanguage;
                 updateUIText();
             });
+
+            // Listen for changes on the arrow guidance toggle. When the player changes
+            // this setting, refresh the directional helpers if we're at an intersection.
+            const arrowToggleEl = document.getElementById('arrow-toggle');
+            if (arrowToggleEl) {
+                arrowToggleEl.addEventListener('change', () => {
+                    if (gameState === 'AT_INTERSECTION') {
+                        // Refresh the available turns and re-render arrows based on new setting
+                        checkForTurns();
+                    } else {
+                        // Remove any existing arrows immediately when toggled off outside of intersections
+                        while (landmarksGroup.children.length > 0) {
+                            landmarksGroup.remove(landmarksGroup.children[0]);
+                        }
+                    }
+                });
+            }
             
             document.getElementById('resume-game-btn').addEventListener('click', togglePauseMenu);
             document.getElementById('pause-to-main-menu-btn').addEventListener('click', () => {
@@ -2438,7 +2463,16 @@
         
         function createDirectionalHelpers() {
             // Directional helpers (arrows) are less relevant/visible in 3P view. Hide them. (v10.0)
+            // Clear any existing helper arrows before computing new ones.
             while (landmarksGroup.children.length > 0) landmarksGroup.remove(landmarksGroup.children[0]);
+
+            // Read the arrow guidance toggle from the settings panel.
+            // If the toggle element exists and its value is 'off', we disable arrows.
+            const arrowSelect = document.getElementById('arrow-toggle');
+            const showArrows  = !(arrowSelect && arrowSelect.value === 'off');
+            // Define which view modes should show arrows when enabled.  When new view modes are added,
+            // extend this array as appropriate.
+            const arrowViews  = ['1P', '3P'];
             
             const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
             if (!level) return { forward: false, left: false, right: false };
@@ -2471,11 +2505,11 @@
                 if (isPath(nx, nz)) {
                     available[d.name] = true;
                     
-                    // Only draw arrows in 1P view (v10.0)
-                    if (viewMode === '1P') {
+                    // Only draw arrows if enabled in settings and the current view is allowed.
+                    if (showArrows && arrowViews.includes(viewMode)) {
                         const isBackwards = previousGridPos && nx === previousGridPos.x && nz === previousGridPos.z;
-                        const arrowMat = isBackwards ? redArrowMat : yellowArrowMat;
-                        const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+                        const arrowMat   = isBackwards ? redArrowMat : yellowArrowMat;
+                        const arrow      = new THREE.Mesh(arrowGeo, arrowMat);
                         arrow.position.copy(d.pos);
                         arrow.rotation.z = d.rotZ;
                         landmarksGroup.add(arrow);

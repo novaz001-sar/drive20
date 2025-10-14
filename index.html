@@ -797,7 +797,8 @@
             <button id="free-mode-btn" data-lang-zh="自由模式" data-lang-en="Free Mode">自由模式</button>
             <button id="custom-mode-btn" data-lang-zh="自定义模式" data-lang-en="Custom Mode" disabled>自定义模式</button>
             <button id="editor-mode-btn" data-lang-zh="地图编辑器" data-lang-en="Map Editor">地图编辑器</button>
-            <div id="main-menu-info-box" class="menu-info-box"></div>
+                    <button id="training-mode-btn" data-lang-zh="方向训练" data-lang-en="Direction Training">方向训练</button>
+        <div id="main-menu-info-box" class="menu-info-box">" class="menu-info-box"></div>
         </div>
     </div>
     
@@ -1115,6 +1116,8 @@
                 editor_slots_full: "所有自定义槽位已满。",
                 desc_free: "自由选择任何已解锁的关卡进行练习，没有步数和成绩的压力。",
                 desc_custom: "游玩、编辑或删除您在地图编辑器中创作的地图。",
+           desc_training: "练习顺方向与反方向旋转方向判断。使用 A/D 键或左右箭头选择旋转方向。",
+
                 desc_editor: "发挥你的创造力！设计、建造并保存属于你自己的迷宫地图。",
                 prompt_wall: "前方是墙壁，请选择其他方向。",
                 prompt_options: (options) => `可选方向: ${options.join(' | ')}`,
@@ -1148,6 +1151,8 @@
                 desc_free: "Freely select any unlocked level for practice without the pressure of steps and scores.",
                 desc_custom: "Play, edit, or delete the maps you've created in the map editor.",
                 desc_editor: "Unleash your creativity! Design, build, and save your own maze maps.",
+                desc_training: "Practice judging rotation direction (clockwise or counter-clockwise). Use A/D or the left/right arrow keys to choose the rotation direction.",
+
                 prompt_wall: "There is a wall ahead, please choose another direction.",
                 prompt_options: (options) => `Available moves: ${options.join(' | ')}`,
                 hint_ingame_controls: "Hint: Click the ⚙️ in the top-left to change settings. Press [ESC] to open the menu.",
@@ -3153,7 +3158,14 @@
             document.getElementById('custom-back-btn').onclick = () => {
                 document.getElementById('custom-maps-modal').style.display = 'none';
                 showMainMenu();
-            };
+       
+                // Setup menu info for training mode
+    setupMenuInfo('training-mode-btn', 'main-menu-info-box', 'desc_training');
+    // Event listener for training mode button
+    document.getElementById('training-mode-btn').addEventListener('click', () => {
+        window.location.href = 'clockwise training.html';
+    });
+};
         }
         
         // ====================================================================

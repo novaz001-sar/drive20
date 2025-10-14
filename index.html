@@ -179,20 +179,20 @@
 
         #minimap-container.big-map {
             position: relative;
-            width: 70vmin;
-            height: 70vmin;
+            width: 60vmin;
+            height: 60vmin;
             cursor: pointer;
         }
 
-#minimap-container.small-map {
-    top: 20px;
-    right: 20px;
-    width: calc(30vmin * var(--minimap-scale));
-    height: calc(30vmin * var(--minimap-scale));
-    max-width: calc(300vmin * var(--minimap-scale));
-    max-height: calc(300vmin * var(--minimap-scale));
-    cursor: pointer;
-}
+        #minimap-container.small-map {
+            top: 20px;
+            right: 20px;
+            width: calc(25vmin * var(--minimap-scale));
+            height: calc(25vmin * var(--minimap-scale));
+            max-width: calc(250px * var(--minimap-scale));
+            max-height: calc(250px * var(--minimap-scale));
+            cursor: pointer;
+        }
 
         #minimap-canvas {
             width: 100%;
@@ -697,11 +697,11 @@
                 order: 1; /* Map above instructions */
             }
             #minimap-container.big-map {
-                width: 70vw;
-                height: 70vw;
+                width: 80vw;
+                height: 80vw;
             }
             /* Adjust UI elements for mobile (v10.0) */
-            #view-tog70e-container {
+            #view-toggle-container {
                 top: 10px;
             }
             .view-toggle-btn {
@@ -797,8 +797,7 @@
             <button id="free-mode-btn" data-lang-zh="自由模式" data-lang-en="Free Mode">自由模式</button>
             <button id="custom-mode-btn" data-lang-zh="自定义模式" data-lang-en="Custom Mode" disabled>自定义模式</button>
             <button id="editor-mode-btn" data-lang-zh="地图编辑器" data-lang-en="Map Editor">地图编辑器</button>
-                    <button id="training-mode-btn" data-lang-zh="方向训练" data-lang-en="Direction Training">方向训练</button>
-        <div id="main-menu-info-box" class="menu-info-box">" class="menu-info-box"></div>
+            <div id="main-menu-info-box" class="menu-info-box"></div>
         </div>
     </div>
     
@@ -825,17 +824,11 @@
             </div>
             <div class="settings-group">
                 <label for="minimap-size-slider" data-lang-zh="小地图大小" data-lang-en="Minimap Size">小地图大小</label>
-<input type="range" id="minimap-size-slider" min="0.01" max="3" step="0.01" value="1>            </div>
+                <input type="range" id="minimap-size-slider" min="1" max="1.414" step="0.01" value="1">
+            </div>
             <div class="settings-group">
                 <label for="helper-text-toggle" data-lang-zh="辅助文字" data-lang-en="Helper Text">辅助文字</label>
-<        <select id="helper-text-toggle">
-            <option value="off" data-lang-zh="关闭" data-lang-en="Off">关闭</option>
-            <option value="on" data-lang-zh="开启" data-lang-en="On">开启</option>
-        </select>   </div>
-            <!-- Settings group for toggling directional arrows (yellow arrow guidance) -->
-            <div class="settings-group">
-                <label for="arrow-toggle" data-lang-zh="方向箭头" data-lang-en="Yellow Arrows">方向箭头</label>
-                <select id="arrow-toggle">
+                <select id="helper-text-toggle">
                     <option value="on" data-lang-zh="开启" data-lang-en="On">开启</option>
                     <option value="off" data-lang-zh="关闭" data-lang-en="Off">关闭</option>
                 </select>
@@ -1069,10 +1062,7 @@
         let previousGameState = '';
         let previousGridPos = null;
 
-        const keyState = {
-            'a': false, 'd': false, 'w': false, 's': false, 'escape': false,
-            'arrowup': false, 'arrowdown': false, 'arrowleft': false, 'arrowright': false
-        };
+        const keyState = { 'a': false, 'd': false, 'e': false, 'w': false, 'escape': false };
         let keyDebounce = false;
 
         let wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, floorMaterial, landmarkMaterial, goalWallMaterial;
@@ -1116,14 +1106,12 @@
                 editor_slots_full: "所有自定义槽位已满。",
                 desc_free: "自由选择任何已解锁的关卡进行练习，没有步数和成绩的压力。",
                 desc_custom: "游玩、编辑或删除您在地图编辑器中创作的地图。",
-           desc_training: "练习顺方向与反方向旋转方向判断。使用 A/D 键或左右箭头选择旋转方向。",
-
                 desc_editor: "发挥你的创造力！设计、建造并保存属于你自己的迷宫地图。",
                 prompt_wall: "前方是墙壁，请选择其他方向。",
                 prompt_options: (options) => `可选方向: ${options.join(' | ')}`,
                 hint_ingame_controls: "提示：点击左上角 ⚙️ 更改设置，按 [ESC] 可打开菜单。",
                 hint_driving_start: "提示：黄色箭头指的是没有墙阻挡的可选方向，不是导航方向。",
-                prompt_dead_end: "遇到死胡同！掉头请按 [A/←] 或 [D/→]。",
+                prompt_dead_end: "遇到死胡同！连续按两次 [A] 或 [D] 键可以掉头。",
                 prompt_near_goal: "再往前一步就到达目的地了！",
                 waypoint_hud: (next, total) => `寻找路标: ${next} / ${total}`,
                 prompt_goal_locked: "请先按顺序访问所有路标！",
@@ -1151,13 +1139,11 @@
                 desc_free: "Freely select any unlocked level for practice without the pressure of steps and scores.",
                 desc_custom: "Play, edit, or delete the maps you've created in the map editor.",
                 desc_editor: "Unleash your creativity! Design, build, and save your own maze maps.",
-                desc_training: "Practice judging rotation direction (clockwise or counter-clockwise). Use A/D or the left/right arrow keys to choose the rotation direction.",
-
                 prompt_wall: "There is a wall ahead, please choose another direction.",
                 prompt_options: (options) => `Available moves: ${options.join(' | ')}`,
                 hint_ingame_controls: "Hint: Click the ⚙️ in the top-left to change settings. Press [ESC] to open the menu.",
                 hint_driving_start: "Hint: Yellow arrows indicate available directions without walls, not a navigation path.",
-                prompt_dead_end: "Dead end! Press [A/←] or [D/→] to turn around.",
+                prompt_dead_end: "Dead end! Press [A] or [D] twice to turn around.",
                 prompt_near_goal: "One more step to the destination!",
                 waypoint_hud: (next, total) => `Find Waypoint: ${next} / ${total}`,
                 prompt_goal_locked: "Please visit all waypoints in order first!",
@@ -1394,9 +1380,7 @@
             carSizeSlider.addEventListener('input', (e) => {
                 thirdPersonControls.carScale = parseFloat(e.target.value);
                 if (playerCarModel) {
-                    const maxCarScale = (TILE_SIZE * 0.7) / (TILE_SIZE * 0.42); // 70% of aisle width
-                    const newScale = Math.min(parseFloat(e.target.value), maxCarScale);
-                    playerCarModel.scale.set(newScale, newScale, newScale);
+                    playerCarModel.scale.set(thirdPersonControls.carScale, thirdPersonControls.carScale, thirdPersonControls.carScale);
                 }
             });
 
@@ -1412,10 +1396,7 @@
             };
             setupMenuInfo('free-mode-btn', 'main-menu-info-box', 'desc_free');
             setupMenuInfo('custom-mode-btn', 'main-menu-info-box', 'desc_custom');
-
-                    setupMenuInfo('editor-mode-btn', 'main-menu-info-box', 'desc_editor');
-        setupMenuInfo('training-mode-btn', 'main-menu-info-box', 'desc_training');
- 
+            setupMenuInfo('editor-mode-btn', 'main-menu-info-box', 'desc_editor');
 
             document.getElementById('free-mode-btn').addEventListener('click', showFreeModeLevelSelect);
             
@@ -1425,10 +1406,6 @@
                     showCustomMapsModal();
                 }
             });
-            document.getElementById('training-mode-btn').addEventListener('click', () => {
-    window.location.href = 'clockwise%20training.html';
-});
-            
             
             document.getElementById('main-menu-btn').addEventListener('click', () => {
                 document.getElementById('level-complete-modal').style.display = 'none';
@@ -1481,23 +1458,6 @@
                 document.getElementById('initial-language-select').value = currentLanguage;
                 updateUIText();
             });
-
-            // Listen for changes on the arrow guidance toggle. When the player changes
-            // this setting, refresh the directional helpers if we're at an intersection.
-            const arrowToggleEl = document.getElementById('arrow-toggle');
-            if (arrowToggleEl) {
-                arrowToggleEl.addEventListener('change', () => {
-                    if (gameState === 'AT_INTERSECTION') {
-                        // Refresh the available turns and re-render arrows based on new setting
-                        checkForTurns();
-                    } else {
-                        // Remove any existing arrows immediately when toggled off outside of intersections
-                        while (landmarksGroup.children.length > 0) {
-                            landmarksGroup.remove(landmarksGroup.children[0]);
-                        }
-                    }
-                });
-            }
             
             document.getElementById('resume-game-btn').addEventListener('click', togglePauseMenu);
             document.getElementById('pause-to-main-menu-btn').addEventListener('click', () => {
@@ -1908,9 +1868,9 @@
             
             prompt.style.display = 'inline-block';
             const options = [];
-            if (availableTurns.forward) options.push(`${lang.forward} [W/↑]`);
-            if (availableTurns.left) options.push(`${lang.turnLeft} [A/←]`);
-            if (availableTurns.right) options.push(`${lang.turnRight} [D/→]`);
+            if (availableTurns.forward) options.push(`${lang.forward} [W]`);
+            if (availableTurns.left) options.push(`${lang.turnLeft} [A]`);
+            if (availableTurns.right) options.push(`${lang.turnRight} [D]`);
 
             if (!availableTurns.forward && !availableTurns.left && !availableTurns.right) {
                 prompt.textContent = lang.prompt_dead_end;
@@ -1921,18 +1881,17 @@
             }
         }
 
-        function setupMove(direction = 'forward') {
+        function setupMove() {
             const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
             const gridPos = worldToGrid(player.position);
-            const moveZ = direction === 'forward' ? -1 : 1;
-            const moveVector = new THREE.Vector3(0, 0, moveZ).applyEuler(player.rotation);
+            const moveVector = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation);
             const nextGridX = gridPos.x + Math.round(moveVector.x);
             const nextGridZ = gridPos.z + Math.round(moveVector.z);
 
             const isGoalNext = (nextGridX === level.goal.x && nextGridZ === level.goal.z);
             const isGoalLocked = currentLevelState.isWaypointMode && currentLevelState.nextWaypoint <= currentLevelState.totalWaypoints;
 
-            if (direction === 'forward' && isGoalNext && !isGoalLocked) {
+            if (isGoalNext && !isGoalLocked) {
                 showTemporaryMessage(translations[currentLanguage].prompt_near_goal, 2500);
             }
 
@@ -2128,16 +2087,14 @@
             keyDebounce = true;
             setTimeout(() => { keyDebounce = false; }, 100);
 
-            if (key === 'd' || key === 'arrowright') {
+            if (key === 'd') {
                 targetRotation.y -= Math.PI / 2;
                 gameState = 'TURNING';
-            } else if (key === 'a' || key === 'arrowleft') {
+            } else if (key === 'a') {
                 targetRotation.y += Math.PI / 2;
                 gameState = 'TURNING';
-            } else if (key === 'w' || key === 'arrowup') {
-                setupMove('forward');
-            } else if (key === 's' || key === 'arrowdown') {
-                setupMove('backward');
+            } else if (key === 'w') {
+                setupMove();
             }
         }
         
@@ -2473,16 +2430,7 @@
         
         function createDirectionalHelpers() {
             // Directional helpers (arrows) are less relevant/visible in 3P view. Hide them. (v10.0)
-            // Clear any existing helper arrows before computing new ones.
             while (landmarksGroup.children.length > 0) landmarksGroup.remove(landmarksGroup.children[0]);
-
-            // Read the arrow guidance toggle from the settings panel.
-            // If the toggle element exists and its value is 'off', we disable arrows.
-            const arrowSelect = document.getElementById('arrow-toggle');
-            const showArrows  = !(arrowSelect && arrowSelect.value === 'off');
-            // Define which view modes should show arrows when enabled.  When new view modes are added,
-            // extend this array as appropriate.
-            const arrowViews  = ['1P', '3P'];
             
             const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
             if (!level) return { forward: false, left: false, right: false };
@@ -2515,11 +2463,11 @@
                 if (isPath(nx, nz)) {
                     available[d.name] = true;
                     
-                    // Only draw arrows if enabled in settings and the current view is allowed.
-                    if (showArrows && arrowViews.includes(viewMode)) {
+                    // Only draw arrows in 1P view (v10.0)
+                    if (viewMode === '1P') {
                         const isBackwards = previousGridPos && nx === previousGridPos.x && nz === previousGridPos.z;
-                        const arrowMat   = isBackwards ? redArrowMat : yellowArrowMat;
-                        const arrow      = new THREE.Mesh(arrowGeo, arrowMat);
+                        const arrowMat = isBackwards ? redArrowMat : yellowArrowMat;
+                        const arrow = new THREE.Mesh(arrowGeo, arrowMat);
                         arrow.position.copy(d.pos);
                         arrow.rotation.z = d.rotZ;
                         landmarksGroup.add(arrow);
@@ -3148,28 +3096,25 @@
                     ['custom-play-btn', 'custom-edit-btn', 'custom-delete-btn'].forEach(id => document.getElementById(id).disabled = false);
                 }
             };
-                 document.getElementById('custom-play-btn').onclick = () => {
-        if (selectedCustomMapIndex !== -1) {
-            document.getElementById('custom-maps-modal').style.display = 'none';
-            loadLevel(customLevels[selectedCustomMapIndex]);
+            document.getElementById('custom-play-btn').onclick = () => {
+                if(selectedCustomMapIndex !== -1) {
+                    document.getElementById('custom-maps-modal').style.display = 'none';
+                    loadLevel(customLevels[selectedCustomMapIndex]);
+                }
+            };
+            document.getElementById('custom-edit-btn').onclick = () => { if(selectedCustomMapIndex !== -1) showEditor(selectedCustomMapIndex); };
+            document.getElementById('custom-delete-btn').onclick = () => {
+                if(selectedCustomMapIndex !== -1 && confirm(translations[currentLanguage].confirm_delete)) {
+                    customLevels[selectedCustomMapIndex] = null;
+                    saveCustomLevels();
+                    showCustomMapsModal();
+                }
+            };
+            document.getElementById('custom-back-btn').onclick = () => {
+                document.getElementById('custom-maps-modal').style.display = 'none';
+                showMainMenu();
+            };
         }
-    };
-    document.getElementById('custom-edit-btn').onclick = () => {
-        if (selectedCustomMapIndex !== -1) showEditor(selectedCustomMapIndex);
-    };
-    document.getElementById('custom-delete-btn').onclick = () => {
-        if (selectedCustomMapIndex !== -1 && confirm(translations[currentLanguage].confirm_delete)) {
-            customLevels[selectedCustomMapIndex] = null;
-            saveCustomLevels();
-            showCustomMapsModal();
-        }
-    };
-    document.getElementById('custom-back-btn').onclick = () => {
-        document.getElementById('custom-maps-modal').style.display = 'none';
-        showMainMenu();
-    };
-    }
-    }
         
         // ====================================================================
         // 启动 (Boot)

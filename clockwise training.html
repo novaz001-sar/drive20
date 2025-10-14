@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旋转方向判断游戏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: manipulation; /* 防止双击缩放 */
+        }
+        /* 时钟模式样式 */
+        .game-board {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background-color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 8px solid #e5e7eb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .clock-pointer {
+            position: absolute;
+            width: 4px;
+            height: 120px; /* 指针长度 */
+            background-color: #f87171;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            transform: translateX(-50%);
+            border-radius: 2px;
+            transition-property: transform;
+            transition-timing-function: linear;
+        }
+        
+        /* 指针箭头 */
+        .clock-pointer::before {
+            content: '';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 16px solid #f87171;
+        }
+
+        .center-dot {
+            width: 16px;
+            height: 16px;
+            background-color: #374151;
+            border-radius: 50%;
+            z-index: 10;
+        }
+
+        /* 罗盘/原地旋转模式样式 */
+        .compass-container {
+            width: 300px;
+            height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .compass-pointer {
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 140px solid #ef4444;
+            transform-origin: 50% 70%; /* 调整旋转中心点 */
+            transition-property: transform;
+            transition-timing-function: linear;
+        }
+
+        /* 通用隐藏类 */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen font-sans">
+    <div class="container mx-auto p-4 text-center">
+        
+        <!-- 语言选择 -->
+        <div class="absolute top-4 right-4">
+             <div class="flex justify-center gap-2 bg-gray-200 p-1 rounded-lg">
+                <button id="lang-zh-btn" class="px-3 py-1 rounded-md text-sm font-semibold bg-white text-blue-600 shadow">中文</button>
+                <button id="lang-en-btn" class="px-3 py-1 rounded-md text-sm font-semibold text-gray-600">English</button>
+            </div>
+        </div>
+
+        <h1 class="text-3xl font-bold text-gray-800 mb-6" data-lang-key="title">旋转方向判断游戏</h1>
+        
+        <!-- 样式选择 -->
+        <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" data-lang-key="styleMode">样式模式</label>
+            <div class="flex justify-center max-w-xs mx-auto gap-2 bg-gray-200 p-1 rounded-lg">
+                <button id="clock-style-btn" class="w-full py-1 rounded-md text-sm font-semibold bg-white text-blue-600 shadow" data-lang-key="clockStyle">时钟模式</button>
+                <button id="compass-style-btn" class="w-full py-1 rounded-md text-sm font-semibold text-gray-600" data-lang-key="compassStyle">原地旋转</button>
+            </div>
+        </div>
+
+        <div class="flex justify-center">
+            <!-- 时钟模式容器 -->
+            <div id="clock-container" class="game-board">
+                <div class="center-dot"></div>
+                <div id="clock-pointer" class="clock-pointer"></div>
+            </div>
+            <!-- 罗盘模式容器 -->
+            <div id="compass-container" class="compass-container hidden">
+                <div id="compass-pointer" class="compass-pointer"></div>
+            </div>
+        </div>
+
+        <div class="mt-8">
+            <button id="next-question-btn" class="px-8 py-3 bg-blue-500 text-white font-bold text-lg rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition duration-200" data-lang-key="nextQuestion">
+                开始下一题
+            </button>
+        </div>
+
+        <!-- 设置区域 -->
+        <div class="mt-6 space-y-4 w-full max-w-sm mx-auto bg-white p-4 rounded-lg shadow">
+            <!-- 模式选择 -->
+            <div>
+                <label class="block text-gray-700 text-sm font-bold mb-2" data-lang-key="trainingMode">训练模式</label>
+                <div class="flex justify-center gap-2 bg-gray-200 p-1 rounded-lg">
+                    <button id="random-mode-btn" class="w-full py-1 rounded-md text-sm font-semibold bg-white text-blue-600 shadow" data-lang-key="randomMode">随机模式</button>
+                    <button id="fixed-mode-btn" class="w-full py-1 rounded-md text-sm font-semibold text-gray-600" data-lang-key="fixedMode">指定范围</button>
+                    <button id="special-mode-btn" class="w-full py-1 rounded-md text-sm font-semibold text-gray-600" data-lang-key="specialMode">特训模式</button>
+                </div>
+            </div>
+
+            <!-- 旋转角度范围 (指定模式下显示) -->
+            <div id="fixed-range-controls" class="hidden space-y-2">
+                <label class="block text-gray-700 text-sm font-bold" data-lang-key="angleRange">旋转角度范围 (度)</label>
+                <div>
+                    <div class="flex justify-between text-xs text-gray-600">
+                        <span data-lang-key="minAngle">最小角度: <span id="min-angle-value">60</span>°</span>
+                        <span>10</span>
+                        <span>350</span>
+                    </div>
+                    <input id="min-angle-slider" type="range" min="10" max="350" value="60" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs text-gray-600">
+                        <span data-lang-key="maxAngle">最大角度: <span id="max-angle-value">180</span>°</span>
+                        <span>10</span>
+                        <span>350</span>
+                    </div>
+                    <input id="max-angle-slider" type="range" min="10" max="350" value="180" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+            
+            <!-- 速度控制滑块 -->
+            <div>
+                <label id="speed-label" class="block text-gray-700 text-sm font-bold mb-2" data-lang-key="speedControl">速度调节 (当前: <span id="speed-value">20</span> 秒/圈)</label>
+                <div class="flex items-center gap-4">
+                    <span class="text-xs font-semibold" data-lang-key="fast">快</span>
+                    <input id="speed-slider" type="range" min="5" max="60" value="20" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span class="text-xs font-semibold" data-lang-key="slow">慢</span>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="message" class="mt-6 text-2xl font-semibold h-10">&nbsp;</div>
+        
+        <div class="mt-4 text-gray-500">
+            <p data-lang-key="instructionCCW">逆时针: 按下 'A' 键 或 '←' 左箭头</p>
+            <p data-lang-key="instructionCW">顺时针: 按下 'D' 键 或 '→' 右箭头</p>
+        </div>
+    </div>
+
+    <script>
+        // --- 语言翻译 ---
+        const translations = {
+            'zh': {
+                title: '旋转方向判断游戏',
+                styleMode: '样式模式',
+                clockStyle: '时钟模式',
+                compassStyle: '原地旋转',
+                nextQuestion: '开始下一题',
+                trainingMode: '训练模式',
+                randomMode: '随机模式',
+                fixedMode: '指定范围',
+                specialMode: '特训模式',
+                angleRange: '旋转角度范围 (度)',
+                minAngle: '最小角度: ',
+                maxAngle: '最大角度: ',
+                speedControl: '速度调节 (当前: {speed} 秒/圈)',
+                fast: '快',
+                slow: '慢',
+                instructionCCW: "逆时针: 按下 'A' 键 或 '←' 左箭头",
+                instructionCW: "顺时针: 按下 'D' 键 或 '→' 右箭头",
+                prepare: '准备...',
+                watch: '看仔细！',
+                correct: '正确！ 🎉',
+                error: '错误! 正确答案是: {answer}',
+                clockwise: '顺时针',
+                counterClockwise: '逆时针'
+            },
+            'en': {
+                title: 'Rotation Direction Game',
+                styleMode: 'Style Mode',
+                clockStyle: 'Clock Style',
+                compassStyle: 'Compass Style',
+                nextQuestion: 'Next Question',
+                trainingMode: 'Training Mode',
+                randomMode: 'Random',
+                fixedMode: 'Custom Range',
+                specialMode: 'Special Training',
+                angleRange: 'Rotation Angle Range (deg)',
+                minAngle: 'Min Angle: ',
+                maxAngle: 'Max Angle: ',
+                speedControl: 'Speed (Current: {speed} s/rev)',
+                fast: 'Fast',
+                slow: 'Slow',
+                instructionCCW: "Counter-Clockwise: Press 'A' or '←' Arrow",
+                instructionCW: "Clockwise: Press 'D' or '→' Arrow",
+                prepare: 'Get ready...',
+                watch: 'Watch carefully!',
+                correct: 'Correct! 🎉',
+                error: 'Wrong! The answer is: {answer}',
+                clockwise: 'Clockwise',
+                counterClockwise: 'Counter-Clockwise'
+            }
+        };
+        let currentLang = 'zh';
+
+        // DOM Elements
+        const clockPointer = document.getElementById('clock-pointer');
+        const compassPointer = document.getElementById('compass-pointer');
+        const clockContainer = document.getElementById('clock-container');
+        const compassContainer = document.getElementById('compass-container');
+        const clockStyleBtn = document.getElementById('clock-style-btn');
+        const compassStyleBtn = document.getElementById('compass-style-btn');
+        const langZhBtn = document.getElementById('lang-zh-btn');
+        const langEnBtn = document.getElementById('lang-en-btn');
+        const speedLabel = document.getElementById('speed-label');
+        
+        const nextQuestionBtn = document.getElementById('next-question-btn');
+        const messageEl = document.getElementById('message');
+        const speedSlider = document.getElementById('speed-slider');
+        
+        const randomModeBtn = document.getElementById('random-mode-btn');
+        const fixedModeBtn = document.getElementById('fixed-mode-btn');
+        const specialModeBtn = document.getElementById('special-mode-btn');
+        
+        const fixedRangeControls = document.getElementById('fixed-range-controls');
+        const minAngleSlider = document.getElementById('min-angle-slider');
+        const maxAngleSlider = document.getElementById('max-angle-slider');
+        const minAngleValueEl = document.getElementById('min-angle-value');
+        const maxAngleValueEl = document.getElementById('max-angle-value');
+
+        // Game State
+        let currentDirection = null;
+        let gameReadyForInput = false;
+        let secondsPerRevolution = 20;
+        let trainingMode = 'random';
+        let styleMode = 'clock';
+        let minAngle = 60;
+        let maxAngle = 180;
+
+        // --- Event Listeners ---
+        langZhBtn.addEventListener('click', () => switchLanguage('zh'));
+        langEnBtn.addEventListener('click', () => switchLanguage('en'));
+
+        clockStyleBtn.addEventListener('click', () => switchStyleMode('clock'));
+        compassStyleBtn.addEventListener('click', () => switchStyleMode('compass'));
+
+        randomModeBtn.addEventListener('click', () => switchTrainingMode('random'));
+        fixedModeBtn.addEventListener('click', () => switchTrainingMode('fixed'));
+        specialModeBtn.addEventListener('click', () => switchTrainingMode('special'));
+        
+        speedSlider.addEventListener('input', (event) => {
+            secondsPerRevolution = parseInt(event.target.value, 10);
+            updateSpeedLabel();
+        });
+
+        minAngleSlider.addEventListener('input', (event) => {
+            minAngle = parseInt(event.target.value, 10);
+            if (minAngle >= maxAngle) {
+                minAngle = maxAngle - 1;
+                event.target.value = minAngle;
+            }
+            minAngleValueEl.textContent = minAngle;
+        });
+        maxAngleSlider.addEventListener('input', (event) => {
+            maxAngle = parseInt(event.target.value, 10);
+            if (maxAngle <= minAngle) {
+                maxAngle = minAngle + 1;
+                event.target.value = maxAngle;
+            }
+            maxAngleValueEl.textContent = maxAngle;
+        });
+        
+        nextQuestionBtn.addEventListener('click', startNextQuestion);
+        window.addEventListener('keydown', handleKeyPress);
+        
+        // --- Functions ---
+        function switchLanguage(lang) {
+            currentLang = lang;
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+            if(lang === 'zh') {
+                langZhBtn.classList.add('bg-white', 'text-blue-600', 'shadow');
+                langEnBtn.classList.remove('bg-white', 'text-blue-600', 'shadow');
+            } else {
+                langEnBtn.classList.add('bg-white', 'text-blue-600', 'shadow');
+                langZhBtn.classList.remove('bg-white', 'text-blue-600', 'shadow');
+            }
+
+            document.querySelectorAll('[data-lang-key]').forEach(el => {
+                const key = el.dataset.langKey;
+                // Defer speedControl to its own update function
+                if (key === 'speedControl') return;
+
+                const translation = translations[lang][key];
+                if (key === 'minAngle' || key === 'maxAngle') {
+                     const valueEl = el.querySelector('span');
+                     el.innerHTML = translation + valueEl.outerHTML + '°';
+                } else {
+                    el.textContent = translation;
+                }
+            });
+            updateSpeedLabel();
+            messageEl.innerHTML = '&nbsp;'; // Clear message on lang switch
+        }
+
+        function updateSpeedLabel() {
+            const template = translations[currentLang].speedControl;
+            const replacement = `<span id="speed-value">${secondsPerRevolution}</span>`;
+            speedLabel.innerHTML = template.replace('{speed}', replacement);
+        }
+
+        function switchStyleMode(newStyle) {
+            styleMode = newStyle;
+            if (newStyle === 'clock') {
+                clockContainer.classList.remove('hidden');
+                compassContainer.classList.add('hidden');
+                clockStyleBtn.classList.add('bg-white', 'text-blue-600', 'shadow');
+                compassStyleBtn.classList.remove('bg-white', 'text-blue-600', 'shadow');
+            } else { // compass
+                clockContainer.classList.add('hidden');
+                compassContainer.classList.remove('hidden');
+                compassStyleBtn.classList.add('bg-white', 'text-blue-600', 'shadow');
+                clockStyleBtn.classList.remove('bg-white', 'text-blue-600', 'shadow');
+            }
+        }
+
+        function switchTrainingMode(newMode) {
+            trainingMode = newMode;
+            
+            const buttons = [randomModeBtn, fixedModeBtn, specialModeBtn];
+            buttons.forEach(btn => btn.classList.remove('bg-white', 'text-blue-600', 'shadow'));
+
+            fixedRangeControls.classList.add('hidden');
+
+            if (newMode === 'random') {
+                randomModeBtn.classList.add('bg-white', 'text-blue-600', 'shadow');
+            } else if (newMode === 'fixed') {
+                fixedRangeControls.classList.remove('hidden');
+                fixedModeBtn.classList.add('bg-white', 'text-blue-600', 'shadow');
+            } else if (newMode === 'special') {
+                specialModeBtn.classList.add('bg-white', 'text-blue-600', 'shadow');
+            }
+        }
+
+        function startNextQuestion() {
+            gameReadyForInput = false;
+            messageEl.textContent = translations[currentLang].prepare;
+            messageEl.className = 'mt-6 text-2xl font-semibold h-10 text-gray-700';
+
+            const activePointer = styleMode === 'clock' ? clockPointer : compassPointer;
+            
+            let initialAngle;
+            if (trainingMode === 'special') {
+                const specialAngles = [0, 90, 180, 270];
+                initialAngle = specialAngles[Math.floor(Math.random() * specialAngles.length)];
+            } else {
+                initialAngle = Math.random() * 360;
+            }
+            
+            activePointer.style.transitionDuration = '0s';
+            let transformString = styleMode === 'clock' ? `translateX(-50%) rotate(${initialAngle}deg)` : `rotate(${initialAngle}deg)`;
+            activePointer.style.transform = transformString;
+
+            currentDirection = Math.random() < 0.5 ? 'clockwise' : 'counter-clockwise';
+            
+            let rotationAngle;
+            if (trainingMode === 'special') {
+                rotationAngle = 90;
+            } else if (trainingMode === 'random') {
+                rotationAngle = 60 + Math.random() * 120;
+            } else { // fixed mode
+                rotationAngle = minAngle + Math.random() * (maxAngle - minAngle);
+            }
+            
+            const finalAngle = currentDirection === 'clockwise'
+                ? initialAngle + rotationAngle
+                : initialAngle - rotationAngle;
+            
+            const transitionDuration = (rotationAngle / 360) * secondsPerRevolution;
+
+            setTimeout(() => {
+                messageEl.textContent = translations[currentLang].watch;
+                activePointer.style.transitionDuration = `${transitionDuration}s`;
+                transformString = styleMode === 'clock' ? `translateX(-50%) rotate(${finalAngle}deg)` : `rotate(${finalAngle}deg)`;
+                activePointer.style.transform = transformString;
+            }, 100);
+
+            const animationEndTime = 100 + (transitionDuration * 1000) + 100;
+            setTimeout(() => {
+                messageEl.innerHTML = '&nbsp;';
+                gameReadyForInput = true;
+            }, animationEndTime);
+        }
+
+        function handleKeyPress(event) {
+            if (!gameReadyForInput) return;
+            const key = event.key.toLowerCase();
+            let playerChoice = null;
+            if (key === 'a' || key === 'arrowleft') {
+                playerChoice = 'counter-clockwise';
+            } else if (key === 'd' || key === 'arrowright') {
+                playerChoice = 'clockwise';
+            } else {
+                return;
+            }
+            gameReadyForInput = false;
+            if (playerChoice === currentDirection) {
+                messageEl.textContent = translations[currentLang].correct;
+                messageEl.className = 'mt-6 text-2xl font-semibold h-10 text-green-500';
+            } else {
+                const answerText = currentDirection === 'clockwise' ? translations[currentLang].clockwise : translations[currentLang].counterClockwise;
+                messageEl.textContent = translations[currentLang].error.replace('{answer}', answerText);
+                messageEl.className = 'mt-6 text-2xl font-semibold h-10 text-red-500';
+            }
+        }
+        
+        // Initialize on load
+        switchLanguage(currentLang);
+    </script>
+</body>
+</html>
+

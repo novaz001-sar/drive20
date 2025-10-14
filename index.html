@@ -1412,7 +1412,9 @@
             };
             setupMenuInfo('free-mode-btn', 'main-menu-info-box', 'desc_free');
             setupMenuInfo('custom-mode-btn', 'main-menu-info-box', 'desc_custom');
-            setupMenuInfo('editor-mode-btn', 'main-menu-info-box', 'desc_editor');
+            setupMenuInfo('editor-mode-btn', 'main-menu-i
+                          setupMenuInfo('training-mode-btn', 'main-menu-info-box', 'desc_training');
+nfo-box', 'desc_editor');
 
             document.getElementById('free-mode-btn').addEventListener('click', showFreeModeLevelSelect);
             
@@ -1422,6 +1424,10 @@
                     showCustomMapsModal();
                 }
             });
+            document.getElementById('training-mode-btn').addEventListener('click', () => {
+    window.location.href = 'clockwise%20training.html';
+});
+            
             
             document.getElementById('main-menu-btn').addEventListener('click', () => {
                 document.getElementById('level-complete-modal').style.display = 'none';
@@ -3159,12 +3165,9 @@
                 document.getElementById('custom-maps-modal').style.display = 'none';
                 showMainMenu();
        
-                // Setup menu info for training mode
-    setupMenuInfo('training-mode-btn', 'main-menu-info-box', 'desc_training');
-    // Event listener for training mode button
-    document.getElementById('training-mode-btn').addEventListener('click', () => {
-        window.location.href = 'clockwise%20training.html';
-    });
+                
+
+    
     });
 };
         }

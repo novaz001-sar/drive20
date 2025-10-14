@@ -3148,27 +3148,28 @@
                     ['custom-play-btn', 'custom-edit-btn', 'custom-delete-btn'].forEach(id => document.getElementById(id).disabled = false);
                 }
             };
-            document.getElementById('custom-play-btn').onclick = () => {
-                if(selectedCustomMapIndex !== -1) {
-                    document.getElementById('custom-maps-modal').style.display = 'none';
-                    loadLevel(customLevels[selectedCustomMapIndex]);
-                }
-            };
-            document.getElementById('custom-edit-btn').onclick = () => { if(selectedCustomMapIndex !== -1) showEditor(selectedCustomMapIndex); };
-            document.getElementById('custom-delete-btn').onclick = () => {
-                if(selectedCustomMapIndex !== -1 && confirm(translations[currentLanguage].confirm_delete)) {
-                    customLevels[selectedCustomMapIndex] = null;
-                    saveCustomLevels();
-                    showCustomMapsModal();
-                }
-            };
-            document.getElementById('custom-back-btn').onclick = () => {
-                document.getElementById('custom-maps-modal').style.display = 'none';
-                showMainMenu();
-           };
-           };
-   }
-
+                 document.getElementById('custom-play-btn').onclick = () => {
+        if (selectedCustomMapIndex !== -1) {
+            document.getElementById('custom-maps-modal').style.display = 'none';
+            loadLevel(customLevels[selectedCustomMapIndex]);
+        }
+    };
+    document.getElementById('custom-edit-btn').onclick = () => {
+        if (selectedCustomMapIndex !== -1) showEditor(selectedCustomMapIndex);
+    };
+    document.getElementById('custom-delete-btn').onclick = () => {
+        if (selectedCustomMapIndex !== -1 && confirm(translations[currentLanguage].confirm_delete)) {
+            customLevels[selectedCustomMapIndex] = null;
+            saveCustomLevels();
+            showCustomMapsModal();
+        }
+    };
+    document.getElementById('custom-back-btn').onclick = () => {
+        document.getElementById('custom-maps-modal').style.display = 'none';
+        showMainMenu();
+    };
+    }
+    }
         
         // ====================================================================
         // 启动 (Boot)

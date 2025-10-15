@@ -187,10 +187,10 @@
         #minimap-container.small-map {
             top: 20px;
             right: 20px;
-            width: calc(25vmin * var(--minimap-scale));
-            height: calc(25vmin * var(--minimap-scale));
-            max-width: calc(250px * var(--minimap-scale));
-            max-height: calc(250px * var(--minimap-scale));
+            width: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin);
+            height: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin);
+            max-width: 50vmin;
+            max-height: 50vmin;
             cursor: pointer;
         }
 
@@ -726,6 +726,17 @@
             }
         }
     </style>
+
+<style id="minimap-halfscreen-override">
+/* Force small-map to allow up to half of the screen (short side) */
+#minimap-container.small-map {
+    width: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin) !important;
+    height: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin) !important;
+    max-width: 50vmin !important;
+    max-height: 50vmin !important;
+}
+</style>
+
 </head>
 <body>
     <div id="game-container"></div>
@@ -824,7 +835,7 @@
             </div>
             <div class="settings-group">
                 <label for="minimap-size-slider" data-lang-zh="小地图大小" data-lang-en="Minimap Size">小地图大小</label>
-                <input type="range" id="minimap-size-slider" min="1" max="1.414" step="0.01" value="1">
+                <input type="range" id="minimap-size-slider" min="1" max="2" step="0.01" value="1">
             </div>
             <div class="settings-group">
                 <label for="helper-text-toggle" data-lang-zh="辅助文字" data-lang-en="Helper Text">辅助文字</label>
@@ -1062,7 +1073,7 @@
         let previousGameState = '';
         let previousGridPos = null;
 
-        const keyState = { 'a': false, 'd': false, 'e': false, 'w': false, 'escape': false };
+        const keyState = { 'a': false, 'd': false, 'e': false, 'w': false, 's': false, 'escape': false };
         let keyDebounce = false;
 
         let wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, floorMaterial, landmarkMaterial, goalWallMaterial;
@@ -1451,6 +1462,9 @@
                 document.body.style.fontSize = `calc(${getComputedStyle(document.body).getPropertyValue('--font-size-normal')} * ${e.target.value})`;
             });
             document.getElementById('minimap-size-slider').addEventListener('input', (e) => {
+                /* INIT_MINIMAP_SCALE: ensure --minimap-scale starts with current slider value */
+                document.documentElement.style.setProperty('--minimap-scale', document.getElementById('minimap-size-slider').value);
+
                 document.documentElement.style.setProperty('--minimap-scale', e.target.value);
             });
             document.getElementById('language-select').addEventListener('change', (e) => {
@@ -1881,34 +1895,38 @@
             }
         }
 
-        function setupMove() {
-            const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
-            const gridPos = worldToGrid(player.position);
-            const moveVector = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation);
-            const nextGridX = gridPos.x + Math.round(moveVector.x);
-            const nextGridZ = gridPos.z + Math.round(moveVector.z);
+        
+function setupMoveDir(dirSign = 1) {
+    const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
+    const gridPos = worldToGrid(player.position);
+    const moveVector = new THREE.Vector3(0, 0, -1 * dirSign).applyEuler(player.rotation);
+    const nextGridX = gridPos.x + Math.round(moveVector.x);
+    const nextGridZ = gridPos.z + Math.round(moveVector.z);
 
-            const isGoalNext = (nextGridX === level.goal.x && nextGridZ === level.goal.z);
-            const isGoalLocked = currentLevelState.isWaypointMode && currentLevelState.nextWaypoint <= currentLevelState.totalWaypoints;
+    const isGoalNext = (nextGridX === level.goal.x && nextGridZ === level.goal.z);
+    const isGoalLocked = currentLevelState.isWaypointMode && currentLevelState.nextWaypoint <= currentLevelState.totalWaypoints;
 
-            if (isGoalNext && !isGoalLocked) {
-                showTemporaryMessage(translations[currentLanguage].prompt_near_goal, 2500);
-            }
+    if (isGoalNext && !isGoalLocked) {
+        showTemporaryMessage(translations[currentLanguage].prompt_near_goal, 2500);
+    }
 
-            if (nextGridZ < 0 || nextGridZ >= level.grid.length || nextGridX < 0 || nextGridX >= level.grid[0].length || level.grid[nextGridZ][nextGridX] === 0) {
-                cameraShake();
-                showTemporaryMessage(translations[currentLanguage].prompt_wall);
-            } else {
-                previousGridPos = gridPos;
-                currentLevelState.playerChoices++;
-                document.getElementById('choice-prompt').style.display = 'none';
-                while (landmarksGroup.children.length > 0) {
-                    landmarksGroup.remove(landmarksGroup.children[0]);
-                }
-                targetPosition.copy(gridToWorld(nextGridX, nextGridZ, level.grid));
-                gameState = 'DRIVING';
-            }
+    if (nextGridZ < 0 || nextGridZ >= level.grid.length || nextGridX < 0 || nextGridX >= level.grid[0].length || level.grid[nextGridZ][nextGridX] === 0) {
+        cameraShake();
+        showTemporaryMessage(translations[currentLanguage].prompt_wall);
+    } else {
+        previousGridPos = gridPos;
+        currentLevelState.playerChoices++;
+        document.getElementById('choice-prompt').style.display = 'none';
+        while (landmarksGroup.children.length > 0) {
+            landmarksGroup.remove(landmarksGroup.children[0]);
         }
+        targetPosition.copy(gridToWorld(nextGridX, nextGridZ, level.grid));
+        gameState = 'DRIVING';
+    }
+}
+// Backward-compat wrapper: existing calls still use setupMove()
+function setupMove() { setupMoveDir(1); }
+
         
         function showLevelComplete() {
             const modal = document.getElementById('level-complete-modal');
@@ -2075,33 +2093,53 @@
         // ====================================================================
         
         function onKeyDown(event) {
-            if (!event || !event.key) return;
-            const key = event.key.toLowerCase();
-            if (keyState[key]) return;
-            keyState[key] = true;
+if (!event || !event.key) return;
+const originalKey = event.key;
+let key = originalKey.toLowerCase();
 
-            if (key === 'escape') { togglePauseMenu(); return; }
+// Map Arrow keys to WSAD and prevent default scrolling behavior
+const arrowMap = { 'arrowup': 'w', 'arrowdown': 's', 'arrowleft': 'a', 'arrowright': 'd' };
+if (arrowMap[key]) {
+    event.preventDefault();
+    key = arrowMap[key];
+}
 
-            if (gameState !== 'AT_INTERSECTION' || keyDebounce) return;
-            
-            keyDebounce = true;
-            setTimeout(() => { keyDebounce = false; }, 100);
+if (keyState[key]) return;
+keyState[key] = true;
 
-            if (key === 'd') {
-                targetRotation.y -= Math.PI / 2;
-                gameState = 'TURNING';
-            } else if (key === 'a') {
-                targetRotation.y += Math.PI / 2;
-                gameState = 'TURNING';
-            } else if (key === 'w') {
-                setupMove();
-            }
-        }
+if (key === 'escape') { togglePauseMenu(); return; }
+
+if (gameState !== 'AT_INTERSECTION' || keyDebounce) return;
+
+keyDebounce = true;
+setTimeout(() => { keyDebounce = false; }, 100);
+
+if (key === 'd') {
+    targetRotation.y -= Math.PI / 2;
+    gameState = 'TURNING';
+} else if (key === 'a') {
+    targetRotation.y += Math.PI / 2;
+    gameState = 'TURNING';
+} else if (key === 'w') {
+    setupMoveDir(1);
+} else if (key === 's') {
+    setupMoveDir(-1);
+}
+}
         
         function onKeyUp(event) {
-            if (!event || !event.key) return;
-            keyState[event.key.toLowerCase()] = false;
-        }
+if (!event || !event.key) return;
+const originalKey = event.key;
+let key = originalKey.toLowerCase();
+
+// Map Arrow keys to WSAD on key up as well
+const arrowMap = { 'arrowup': 'w', 'arrowdown': 's', 'arrowleft': 'a', 'arrowright': 'd' };
+if (arrowMap[key]) {
+    event.preventDefault();
+    key = arrowMap[key];
+}
+keyState[key] = false;
+}
 
         // ====================================================================
         // 3D迷宫与视觉生成 (3D Maze & Visuals Generation)

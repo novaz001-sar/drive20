@@ -187,8 +187,8 @@
         #minimap-container.small-map {
             top: 20px;
             right: 20px;
-            width: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin);
-            height: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin);
+            width: calc(25vmin * var(--minimap-scale));
+            height: calc(25vmin * var(--minimap-scale));
             max-width: 50vmin;
             max-height: 50vmin;
             cursor: pointer;
@@ -726,17 +726,6 @@
             }
         }
     </style>
-
-<style id="minimap-halfscreen-override">
-/* Force small-map to allow up to half of the screen (short side) */
-#minimap-container.small-map {
-    width: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin) !important;
-    height: clamp(10vmin, calc(25vmin * var(--minimap-scale)), 50vmin) !important;
-    max-width: 50vmin !important;
-    max-height: 50vmin !important;
-}
-</style>
-
 </head>
 <body>
     <div id="game-container"></div>
@@ -844,7 +833,22 @@
                     <option value="off" data-lang-zh="关闭" data-lang-en="Off">关闭</option>
                 </select>
             </div>
-             <div class="settings-group texture-settings-group">
+             
+<div class="settings-group">
+    <label for="arrow-1p-toggle" data-lang-zh="黄色箭头（第一人称）" data-lang-en="Yellow Arrows (1st Person)">黄色箭头（第一人称）</label>
+    <select id="arrow-1p-toggle">
+        <option value="on" data-lang-zh="开启" data-lang-en="On">开启</option>
+        <option value="off" data-lang-zh="关闭" data-lang-en="Off">关闭</option>
+    </select>
+</div>
+<div class="settings-group">
+    <label for="arrow-3p-toggle" data-lang-zh="黄色箭头（第三人称）" data-lang-en="Yellow Arrows (3rd Person)">黄色箭头（第三人称）</label>
+    <select id="arrow-3p-toggle">
+        <option value="on" data-lang-zh="开启" data-lang-en="On">开启</option>
+        <option value="off" data-lang-zh="关闭" data-lang-en="Off">关闭</option>
+    </select>
+</div>
+            <div class="settings-group texture-settings-group">
                 <label data-lang-zh="纹理设置" data-lang-en="Texture Settings">纹理设置</label>
                 <div class="texture-input-row">
                     <label for="floor-texture-input" data-lang-zh="地面" data-lang-en="Floor">地面</label>
@@ -1049,6 +1053,8 @@
         
         let gameState = 'STARTUP_MODAL';
         let viewMode = '1P'; // '1P' (First Person) or '3P' (Third Person) (v10.0)
+        // NEW: Per-view yellow arrow hints
+        let arrowHintsEnabled = { '1P': true, '3P': false };
         let currentLevelIndex = 0;
         let playerInfo = { nickname: 'Driver', gender: 'other' };
 
@@ -1073,7 +1079,7 @@
         let previousGameState = '';
         let previousGridPos = null;
 
-        const keyState = { 'a': false, 'd': false, 'e': false, 'w': false, 's': false, 'escape': false };
+        const keyState = { 'a': false, 'd': false, 'e': false, 'w': false, 'escape': false };
         let keyDebounce = false;
 
         let wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, floorMaterial, landmarkMaterial, goalWallMaterial;
@@ -1452,7 +1458,22 @@
             });
 
 
-            document.getElementById('settings-button').addEventListener('click', () => {
+            
+// --- NEW: Arrow hints toggles (per view) ---
+const arrow1pToggle = document.getElementById('arrow-1p-toggle');
+const arrow3pToggle = document.getElementById('arrow-3p-toggle');
+if (arrow1pToggle) arrow1pToggle.value = arrowHintsEnabled['1P'] ? 'on' : 'off';
+if (arrow3pToggle) arrow3pToggle.value = arrowHintsEnabled['3P'] ? 'on' : 'off';
+arrow1pToggle?.addEventListener('change', (e) => {
+    arrowHintsEnabled['1P'] = (e.target.value === 'on');
+    if (gameState === 'AT_INTERSECTION') checkForTurns();
+});
+arrow3pToggle?.addEventListener('change', (e) => {
+    arrowHintsEnabled['3P'] = (e.target.value === 'on');
+    if (gameState === 'AT_INTERSECTION') checkForTurns();
+});
+
+document.getElementById('settings-button').addEventListener('click', () => {
                 document.getElementById('settings-panel').style.display = 'flex';
             });
             document.getElementById('close-settings-btn').addEventListener('click', () => {
@@ -1462,9 +1483,6 @@
                 document.body.style.fontSize = `calc(${getComputedStyle(document.body).getPropertyValue('--font-size-normal')} * ${e.target.value})`;
             });
             document.getElementById('minimap-size-slider').addEventListener('input', (e) => {
-                /* INIT_MINIMAP_SCALE: ensure --minimap-scale starts with current slider value */
-                document.documentElement.style.setProperty('--minimap-scale', document.getElementById('minimap-size-slider').value);
-
                 document.documentElement.style.setProperty('--minimap-scale', e.target.value);
             });
             document.getElementById('language-select').addEventListener('change', (e) => {
@@ -1882,9 +1900,9 @@
             
             prompt.style.display = 'inline-block';
             const options = [];
-            if (availableTurns.forward) options.push(`${lang.forward} [W]`);
-            if (availableTurns.left) options.push(`${lang.turnLeft} [A]`);
-            if (availableTurns.right) options.push(`${lang.turnRight} [D]`);
+            if (availableTurns.forward) options.push(`${lang.forward} [W/↑]`);
+            if (availableTurns.left) options.push(`${lang.turnLeft} [A/←]`);
+            if (availableTurns.right) options.push(`${lang.turnRight} [D/→]`);
 
             if (!availableTurns.forward && !availableTurns.left && !availableTurns.right) {
                 prompt.textContent = lang.prompt_dead_end;
@@ -1896,10 +1914,10 @@
         }
 
         
-function setupMoveDir(dirSign = 1) {
+function setupMove(dir = 1) {
     const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
     const gridPos = worldToGrid(player.position);
-    const moveVector = new THREE.Vector3(0, 0, -1 * dirSign).applyEuler(player.rotation);
+    const moveVector = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation).multiplyScalar(dir);
     const nextGridX = gridPos.x + Math.round(moveVector.x);
     const nextGridZ = gridPos.z + Math.round(moveVector.z);
 
@@ -1924,8 +1942,6 @@ function setupMoveDir(dirSign = 1) {
         gameState = 'DRIVING';
     }
 }
-// Backward-compat wrapper: existing calls still use setupMove()
-function setupMove() { setupMoveDir(1); }
 
         
         function showLevelComplete() {
@@ -2092,54 +2108,43 @@ function setupMove() { setupMoveDir(1); }
         // 输入处理 (Input Handling)
         // ====================================================================
         
-        function onKeyDown(event) {
-if (!event || !event.key) return;
-const originalKey = event.key;
-let key = originalKey.toLowerCase();
+        
+function onKeyDown(event) {
+    if (!event || !event.key) return;
+    const key = event.key.toLowerCase();
+    if (keyState[key]) return;
+    keyState[key] = true;
 
-// Map Arrow keys to WSAD and prevent default scrolling behavior
-const arrowMap = { 'arrowup': 'w', 'arrowdown': 's', 'arrowleft': 'a', 'arrowright': 'd' };
-if (arrowMap[key]) {
-    event.preventDefault();
-    key = arrowMap[key];
+    if (key === 'escape') { togglePauseMenu(); return; }
+
+    // Prevent page scroll on arrow keys
+    if (['arrowup','arrowdown','arrowleft','arrowright'].includes(key)) {
+        if (event.preventDefault) event.preventDefault();
+    }
+
+    if (gameState !== 'AT_INTERSECTION' || keyDebounce) return;
+
+    keyDebounce = true;
+    setTimeout(() => { keyDebounce = false; }, 100);
+
+    if (key === 'd' || key === 'arrowright') {
+        targetRotation.y -= Math.PI / 2;
+        gameState = 'TURNING';
+    } else if (key === 'a' || key === 'arrowleft') {
+        targetRotation.y += Math.PI / 2;
+        gameState = 'TURNING';
+    } else if (key === 'w' || key === 'arrowup') {
+        setupMove(1);
+    } else if (key === 's' || key === 'arrowdown') {
+        setupMove(-1);
+    }
 }
 
-if (keyState[key]) return;
-keyState[key] = true;
-
-if (key === 'escape') { togglePauseMenu(); return; }
-
-if (gameState !== 'AT_INTERSECTION' || keyDebounce) return;
-
-keyDebounce = true;
-setTimeout(() => { keyDebounce = false; }, 100);
-
-if (key === 'd') {
-    targetRotation.y -= Math.PI / 2;
-    gameState = 'TURNING';
-} else if (key === 'a') {
-    targetRotation.y += Math.PI / 2;
-    gameState = 'TURNING';
-} else if (key === 'w') {
-    setupMoveDir(1);
-} else if (key === 's') {
-    setupMoveDir(-1);
-}
-}
         
         function onKeyUp(event) {
-if (!event || !event.key) return;
-const originalKey = event.key;
-let key = originalKey.toLowerCase();
-
-// Map Arrow keys to WSAD on key up as well
-const arrowMap = { 'arrowup': 'w', 'arrowdown': 's', 'arrowleft': 'a', 'arrowright': 'd' };
-if (arrowMap[key]) {
-    event.preventDefault();
-    key = arrowMap[key];
-}
-keyState[key] = false;
-}
+            if (!event || !event.key) return;
+            keyState[event.key.toLowerCase()] = false;
+        }
 
         // ====================================================================
         // 3D迷宫与视觉生成 (3D Maze & Visuals Generation)
@@ -2466,54 +2471,59 @@ keyState[key] = false;
             return mesh;
         }
         
-        function createDirectionalHelpers() {
-            // Directional helpers (arrows) are less relevant/visible in 3P view. Hide them. (v10.0)
-            while (landmarksGroup.children.length > 0) landmarksGroup.remove(landmarksGroup.children[0]);
-            
-            const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
-            if (!level) return { forward: false, left: false, right: false };
-            const gridPos = worldToGrid(player.position);
+        
+function createDirectionalHelpers() {
+    // Clear old arrows
+    while (landmarksGroup.children.length > 0) landmarksGroup.remove(landmarksGroup.children[0]);
 
-            const available = { forward: false, left: false, right: false };
-            
-            // Setup for 1P view arrows
-            const arrowShape = new THREE.Shape();
-            const w = 0.5, h = 0.72;
-            arrowShape.moveTo(0,h/2).lineTo(w/2,0).lineTo(w/4,0).lineTo(w/4,-h/2).lineTo(-w/4,-h/2).lineTo(-w/4,0).lineTo(-w/2,0).closePath();
-            const arrowGeo = new THREE.ShapeGeometry(arrowShape);
-            const yellowArrowMat = new THREE.MeshBasicMaterial({ color: 0xffc107, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
-            const redArrowMat = new THREE.MeshBasicMaterial({ color: 0xdc3545, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
-            
-            const baseYaw = Math.round(player.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
-            
-            const isPath = (x, z) => z >= 0 && z < level.grid.length && x >= 0 && x < level.grid[0].length && level.grid[z][x] === 1;
-            
-            const dirs = [
-                {name:'forward', yaw: baseYaw,             pos: new THREE.Vector3( 0.0,-0.0,-4.0), rotZ:  0.0},
-                {name:'left',    yaw: baseYaw + Math.PI/2, pos: new THREE.Vector3(-1.6,-0.0,-4.0), rotZ:  Math.PI/2},
-                {name:'right',   yaw: baseYaw - Math.PI/2, pos: new THREE.Vector3( 1.6,-0.0,-4.0), rotZ: -Math.PI/2}
-            ];
-            
-            for (const d of dirs) {
-                const moveVec = new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(0,d.yaw,0));
-                const [nx, nz] = [gridPos.x + Math.round(moveVec.x), gridPos.z + Math.round(moveVec.z)];
+    const level = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
+    if (!level) return { forward: false, left: false, right: false };
 
-                if (isPath(nx, nz)) {
-                    available[d.name] = true;
-                    
-                    // Only draw arrows in 1P view (v10.0)
-                    if (viewMode === '1P') {
-                        const isBackwards = previousGridPos && nx === previousGridPos.x && nz === previousGridPos.z;
-                        const arrowMat = isBackwards ? redArrowMat : yellowArrowMat;
-                        const arrow = new THREE.Mesh(arrowGeo, arrowMat);
-                        arrow.position.copy(d.pos);
-                        arrow.rotation.z = d.rotZ;
-                        landmarksGroup.add(arrow);
-                    }
-                }
+    const gridPos = worldToGrid(player.position);
+    const available = { forward: false, left: false, right: false };
+
+    // Arrow geometry & materials
+    const arrowShape = new THREE.Shape();
+    const w = 0.5, h = 0.72;
+    arrowShape.moveTo(0, h/2).lineTo(w/2, 0).lineTo(w/4, 0).lineTo(w/4, -h/2)
+              .lineTo(-w/4, -h/2).lineTo(-w/4, 0).lineTo(-w/2, 0).closePath();
+    const arrowGeo = new THREE.ShapeGeometry(arrowShape);
+    const yellowArrowMat = new THREE.MeshBasicMaterial({ color: 0xffc107, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
+    const redArrowMat    = new THREE.MeshBasicMaterial({ color: 0xdc3545, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
+
+    const baseYaw = Math.round(player.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
+    const isPath = (x, z) => z >= 0 && z < level.grid.length && x >= 0 && x < level.grid[0].length && level.grid[z][x] === 1;
+
+    const dirs = [
+        { name: 'forward', yaw: baseYaw,             pos: new THREE.Vector3( 0.0, -0.0, -4.0), rotZ:  0.0 },
+        { name: 'left',    yaw: baseYaw + Math.PI/2, pos: new THREE.Vector3(-1.6, -0.0, -4.0), rotZ:  Math.PI/2 },
+        { name: 'right',   yaw: baseYaw - Math.PI/2, pos: new THREE.Vector3( 1.6, -0.0, -4.0), rotZ: -Math.PI/2 }
+    ];
+
+    // Per-view toggle
+    const shouldShowArrows = !!arrowHintsEnabled[viewMode];
+
+    for (const d of dirs) {
+        const moveVec = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, d.yaw, 0));
+        const nx = gridPos.x + Math.round(moveVec.x);
+        const nz = gridPos.z + Math.round(moveVec.z);
+
+        if (isPath(nx, nz)) {
+            available[d.name] = true;
+
+            if (shouldShowArrows) {
+                const isBackwards = previousGridPos && nx === previousGridPos.x && nz === previousGridPos.z;
+                const arrowMat = isBackwards ? redArrowMat : yellowArrowMat;
+                const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+                arrow.position.copy(d.pos);
+                arrow.rotation.z = d.rotZ;
+                landmarksGroup.add(arrow);
             }
-            return available;
         }
+    }
+    return available;
+}
+
         
         function createSteeringWheel() {
             const wheelGroup = new THREE.Group();

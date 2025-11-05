@@ -2528,11 +2528,12 @@ function createDirectionalHelpers() {
         function createSteeringWheel() {
             const wheelGroup = new THREE.Group();
             const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7, metalness: 0.1 });
-            const gloveMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+            const gloveMatLeft  = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.8 });
+            const gloveMatRight = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
             const cuffMat = new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.6 });
             const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 16, 60), wheelMat);
             wheelGroup.add(wheel);
-            const createGlove = (hand = 'left') => {
+            const createGlove = (hand = 'left', gloveMat = gloveMatRight) => {
                 const gloveGroup = new THREE.Group();
                 const palm = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), gloveMat);
                 palm.scale.set(1, 1.2, 1); gloveGroup.add(palm);
@@ -2542,8 +2543,8 @@ function createDirectionalHelpers() {
                 cuff.position.y = -0.15; gloveGroup.add(cuff);
                 return gloveGroup;
             };
-            const leftHand = createGlove('left'); leftHand.position.set(-0.45, 0.1, 0); leftHand.rotation.z = 0.5; wheelGroup.add(leftHand);
-            const rightHand = createGlove('right'); rightHand.position.set(0.45, 0.1, 0); rightHand.rotation.z = -0.5; wheelGroup.add(rightHand);
+            const leftHand = createGlove('left', gloveMatLeft); leftHand.position.set(-0.45, 0.1, 0); leftHand.rotation.z = 0.5; wheelGroup.add(leftHand);
+            const rightHand = createGlove('right', gloveMatRight); rightHand.position.set(0.45, 0.1, 0); rightHand.rotation.z = -0.5; wheelGroup.add(rightHand);
             wheelGroup.position.set(0, -1.2, -2); wheelGroup.rotation.x = -0.5;
             return wheelGroup;
         }
@@ -2736,7 +2737,38 @@ function createDirectionalHelpers() {
             grad.addColorStop(0, '#ff8080'); grad.addColorStop(1, '#c00000');
             ctx.beginPath(); ctx.moveTo(size*0.5,0); ctx.lineTo(-size*0.4,-size*0.3); ctx.lineTo(-size*0.4,size*0.3); ctx.closePath();
             ctx.fillStyle = grad; ctx.shadowColor = 'rgba(255,0,0,0.9)'; ctx.shadowBlur = size*0.7; ctx.fill();
-            ctx.lineWidth = Math.max(2,size*0.1); ctx.strokeStyle = '#006400'; ctx.stroke();
+            // 2) 关闭阴影，分别描边三条边
+ctx.shadowBlur = 0;
+ctx.lineWidth = Math.max(2, size * 0.1);
+ctx.lineJoin = 'round';
+ctx.lineCap = 'round';
+
+// 三角形三个顶点（与填充时一致）
+const ax = size * 0.5, ay = 0;             // 顶点（朝向）
+const bx = -size * 0.4, by = -size * 0.3;  // 左上角
+const cx = -size * 0.4, cy =  size * 0.3;  // 左下角
+
+// 底边（B->C）：深绿色，保持原样
+ctx.beginPath();
+ctx.moveTo(bx, by);
+ctx.lineTo(cx, cy);
+ctx.strokeStyle = '#006400';
+ctx.stroke();
+
+// 侧边（A->B）：黄色
+ctx.beginPath();
+ctx.moveTo(ax, ay);
+ctx.lineTo(bx, by);
+ctx.strokeStyle = '#FFD700';
+ctx.stroke();
+
+// 侧边（A->C）：白色
+ctx.beginPath();
+ctx.moveTo(ax, ay);
+ctx.lineTo(cx, cy);
+ctx.strokeStyle = '#FFFFFF';
+ctx.stroke();
+
             ctx.restore();
         }
 

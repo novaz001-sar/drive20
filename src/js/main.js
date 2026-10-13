@@ -4,6 +4,9 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { TILE_SIZE, WALL_HEIGHT, MOVE_SPEED, TURN_SPEED, LUCKY_CAT } from './constants.js';
 import { translations } from './i18n.js';
 import { levels } from './levels.js';
+import { createSolidMazeWalls } from './maze-walls.js';
+import { createThirdPersonCameraController } from './third-person-camera.js';
+import { PLAYER_ARROW_PALETTE, createPlayerArrowModel } from './player-arrow.js';
 
 // ====================================================================
 // 全局变量和状态机 (Global Variables & State Machine)
@@ -40,6 +43,35 @@ let thirdPersonControls = {
     angle: 45, // Corresponds to slider initial value
     carScale: 1.0 // NEW: Add car scale control
 };
+const updateCameraPosition = createThirdPersonCameraController({ tileSize: TILE_SIZE, wallHeight: WALL_HEIGHT });
+
+const PLAYER_VEHICLE_STORAGE_KEY = 'drive_player_vehicle_v1';
+let selectedPlayerVehicleId = 'sport-car';
+try {
+    const savedVehicle = localStorage.getItem(PLAYER_VEHICLE_STORAGE_KEY);
+    if (savedVehicle === 'minimap-arrow' || savedVehicle === 'sport-car') selectedPlayerVehicleId = savedVehicle;
+} catch (e) {
+    // The avatar remains selectable when browser storage is unavailable.
+}
+
+function refreshPlayerVehicleModel() {
+    if (!player) return;
+    if (playerCarModel) {
+        player.remove(playerCarModel);
+        playerCarModel.traverse(child => {
+            if (!child.isMesh) return;
+            child.geometry.dispose();
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach(material => material.dispose());
+        });
+    }
+    playerCarModel = selectedPlayerVehicleId === 'minimap-arrow'
+        ? createPlayerArrowModel(THREE, TILE_SIZE)
+        : createPlayerCarModel();
+    playerCarModel.scale.setScalar(thirdPersonControls.carScale);
+    playerCarModel.visible = viewMode === '3P';
+    player.add(playerCarModel);
+}
 
 let currentLevelState = {
     playerChoices: 0,
@@ -134,8 +166,7 @@ function setupSkyBackground() {
     scene.add(player);
     
     // Initialize Player Car Model for 3P view (v10.0)
-    playerCarModel = createPlayerCarModel();
-    player.add(playerCarModel);
+    refreshPlayerVehicleModel();
     
     // Camera setup (Parented to player) (v10.0)
     player.add(camera);
@@ -215,25 +246,9 @@ function setViewMode(mode) {
 // NEW: Function to update 3P camera based on controls
 function updateThirdPersonCamera() {
     if (viewMode !== '3P') return;
-
-    const zoom = thirdPersonControls.zoom; // This is a multiplier for TILE_SIZE
-    const angleDeg = thirdPersonControls.angle; // This is the downward angle in degrees
-
-    const distance = TILE_SIZE * zoom;
-    const angleRad = THREE.MathUtils.degToRad(angleDeg);
-
-    // Calculate local position for the camera relative to the player
-    // Camera should be behind and above the player
-    const camX = 0;
-    const camY = distance * Math.sin(angleRad); // Height
-    const camZ = distance * Math.cos(angleRad); // How far back
-
-    camera.position.set(camX, camY, camZ);
-    
-    // The rotation should be pointing down towards the player's origin.
-    camera.rotation.x = -angleRad;
-    camera.rotation.y = 0; // Local rotations are 0
-    camera.rotation.z = 0;
+    updateCameraPosition({ camera, player, scene, model: playerCarModel,
+        grid: mazeGroup?.getObjectByName('solid-maze-walls')?.userData.grid,
+        zoom: thirdPersonControls.zoom, angle: thirdPersonControls.angle });
 }
 
 function setupUI() {
@@ -257,6 +272,14 @@ function setupUI() {
     // View Toggle Setup (v10.0)
     document.getElementById('view-1p-btn').addEventListener('click', () => setViewMode('1P'));
     document.getElementById('view-3p-btn').addEventListener('click', () => setViewMode('3P'));
+
+    const avatarSelect = document.getElementById('player-avatar-select');
+    avatarSelect.value = selectedPlayerVehicleId;
+    avatarSelect.addEventListener('change', () => {
+        selectedPlayerVehicleId = avatarSelect.value;
+        try { localStorage.setItem(PLAYER_VEHICLE_STORAGE_KEY, selectedPlayerVehicleId); } catch (e) {}
+        refreshPlayerVehicleModel();
+    });
 
     // NEW: Setup 3P control listeners
     const zoomSlider = document.getElementById('zoom-slider');
@@ -522,7 +545,11 @@ function showMainMenu() {
     document.getElementById('main-menu-info-box').innerHTML = '';
     
     [mazeGroup, landmarksGroup, sceneryGroup, waypointsGroup, highlightFloorsGroup].forEach(group => {
-        while(group.children.length > 0){ group.remove(group.children[0]); }
+        while (group.children.length > 0) {
+            const child = group.children[0];
+            if (child.userData.solidMazeWalls) child.geometry.dispose();
+            group.remove(child);
+        }
     });
     if(goalMarker) {
         scene.remove(goalMarker);
@@ -566,7 +593,11 @@ function loadLevel(levelData) {
 
     // Reset groups
     [mazeGroup, landmarksGroup, sceneryGroup, waypointsGroup, highlightFloorsGroup].forEach(group => {
-        while(group.children.length > 0){ group.remove(group.children[0]); }
+        while (group.children.length > 0) {
+            const child = group.children[0];
+            if (child.userData.solidMazeWalls) child.geometry.dispose();
+            group.remove(child);
+        }
     });
     if(goalMarker) {
         scene.remove(goalMarker);
@@ -986,6 +1017,7 @@ function animate() {
         starField.material.opacity = Math.min(1.0, Math.pow(nightFactor, 0.6) * 1.2);
     }
 
+    if (viewMode === '3P') updateThirdPersonCamera();
     renderer.render(scene, camera);
 }
 
@@ -1129,43 +1161,13 @@ function createMazeMesh(grid, goal) {
     mazeGroup.add(floor);
     updateTextureScales();
 
-    const wallGeo = new THREE.PlaneGeometry(TILE_SIZE, WALL_HEIGHT);
-    for (let z = 0; z < gridHeight; z++) {
-        for (let x = 0; x < gridWidth; x++) {
-            if (grid[z][x] === 1) {
-                const worldPos = gridToWorld(x, z, grid);
-                const isNearGoal = Math.abs(x - goal.x) <= 1 && Math.abs(z - goal.z) <= 1 && !(x === goal.x && z === goal.z);
-                
-                // South-facing wall (of cell z-1)
-                if (z > 0 && grid[z - 1][x] === 0) {
-                     const wall = new THREE.Mesh(wallGeo, isNearGoal && z - 1 === goal.z ? goalWallMaterial : wallMaterialS);
-                     wall.position.set(worldPos.x, WALL_HEIGHT / 2, worldPos.z - TILE_SIZE / 2);
-                     mazeGroup.add(wall);
-                }
-                // North-facing wall (of cell z+1)
-                if (z < gridHeight - 1 && grid[z + 1][x] === 0) {
-                     const wall = new THREE.Mesh(wallGeo, isNearGoal && z + 1 === goal.z ? goalWallMaterial : wallMaterialN);
-                     wall.position.set(worldPos.x, WALL_HEIGHT / 2, worldPos.z + TILE_SIZE / 2);
-                     wall.rotation.y = Math.PI;
-                     mazeGroup.add(wall);
-                }
-                // West-facing wall (of cell x-1)
-                if (x > 0 && grid[z][x - 1] === 0) {
-                     const wall = new THREE.Mesh(wallGeo, isNearGoal && x - 1 === goal.x ? goalWallMaterial : wallMaterialW);
-                     wall.position.set(worldPos.x - TILE_SIZE / 2, WALL_HEIGHT / 2, worldPos.z);
-                     wall.rotation.y = Math.PI / 2;
-                     mazeGroup.add(wall);
-                }
-                // East-facing wall (of cell x+1)
-                if (x < gridWidth - 1 && grid[z][x + 1] === 0) {
-                     const wall = new THREE.Mesh(wallGeo, isNearGoal && x + 1 === goal.x ? goalWallMaterial : wallMaterialE);
-                     wall.position.set(worldPos.x + TILE_SIZE / 2, WALL_HEIGHT / 2, worldPos.z);
-                     wall.rotation.y = -Math.PI / 2;
-                     mazeGroup.add(wall);
-                }
-            }
+    mazeGroup.add(createSolidMazeWalls({
+        grid, goal, tileSize: TILE_SIZE, wallHeight: WALL_HEIGHT,
+        materials: {
+            north: wallMaterialN, south: wallMaterialS,
+            east: wallMaterialE, west: wallMaterialW, goal: goalWallMaterial
         }
-    }
+    }));
 }
 
 function createLuckyCat() {
@@ -1500,10 +1502,10 @@ function createMaterials() {
     const defaultWallColorE = new THREE.Color(getComputedStyle(document.body).getPropertyValue('--wall-color-ew').trim());
     const defaultWallColorW = new THREE.Color(getComputedStyle(document.body).getPropertyValue('--wall-color-ew').trim());
 
-    wallMaterialN = new THREE.MeshStandardMaterial({ color: defaultWallColorN, roughness: 0.8, metalness: 0.2, side: THREE.DoubleSide });
-    wallMaterialS = new THREE.MeshStandardMaterial({ color: defaultWallColorS, roughness: 0.8, metalness: 0.2, side: THREE.DoubleSide });
-    wallMaterialE = new THREE.MeshStandardMaterial({ color: defaultWallColorE, roughness: 0.8, metalness: 0.2, side: THREE.DoubleSide });
-    wallMaterialW = new THREE.MeshStandardMaterial({ color: defaultWallColorW, roughness: 0.8, metalness: 0.2, side: THREE.DoubleSide });
+    wallMaterialN = new THREE.MeshStandardMaterial({ color: defaultWallColorN, roughness: 0.8, metalness: 0.2 });
+    wallMaterialS = new THREE.MeshStandardMaterial({ color: defaultWallColorS, roughness: 0.8, metalness: 0.2 });
+    wallMaterialE = new THREE.MeshStandardMaterial({ color: defaultWallColorE, roughness: 0.8, metalness: 0.2 });
+    wallMaterialW = new THREE.MeshStandardMaterial({ color: defaultWallColorW, roughness: 0.8, metalness: 0.2 });
 
     const textureLoader = new THREE.TextureLoader();
     floorMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, roughness: 0.35 });
@@ -1515,8 +1517,7 @@ function createMaterials() {
         roughness: 0.6,
         metalness: 0.2,
         emissive: 0x330000,
-        emissiveIntensity: 0.25,
-        side: THREE.DoubleSide
+        emissiveIntensity: 0.25
     });
 }
 
@@ -1646,8 +1647,8 @@ function drawMinimapPlayerArrow(ctx, playerX, playerZ, rotationRad, cellWidth, c
 
     const size = Math.min(cellWidth, cellHeight) * 1.2;
     const grad = ctx.createRadialGradient(0,0,0,0,0,size*0.5);
-    grad.addColorStop(0, '#ff8080');
-    grad.addColorStop(1, '#c00000');
+    grad.addColorStop(0, PLAYER_ARROW_PALETTE.bodyCenter);
+    grad.addColorStop(1, PLAYER_ARROW_PALETTE.bodyEdge);
 
     // Triangle points to +X by default
     ctx.beginPath();
@@ -1658,7 +1659,7 @@ function drawMinimapPlayerArrow(ctx, playerX, playerZ, rotationRad, cellWidth, c
 
     // Fill
     ctx.fillStyle = grad;
-    ctx.shadowColor = 'rgba(255,0,0,0.9)';
+    ctx.shadowColor = PLAYER_ARROW_PALETTE.glow;
     ctx.shadowBlur = size*0.7;
     ctx.fill();
 
@@ -1676,21 +1677,21 @@ function drawMinimapPlayerArrow(ctx, playerX, playerZ, rotationRad, cellWidth, c
     ctx.beginPath();
     ctx.moveTo(bx, by);
     ctx.lineTo(cx, cy);
-    ctx.strokeStyle = '#006400';
+    ctx.strokeStyle = PLAYER_ARROW_PALETTE.rear;
     ctx.stroke();
 
     // Side edge (A->B): yellow
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.lineTo(bx, by);
-    ctx.strokeStyle = '#FFD700';
+    ctx.strokeStyle = PLAYER_ARROW_PALETTE.left;
     ctx.stroke();
 
     // Side edge (A->C): white
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.lineTo(cx, cy);
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = PLAYER_ARROW_PALETTE.right;
     ctx.stroke();
 
     ctx.restore();

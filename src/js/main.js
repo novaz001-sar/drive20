@@ -4,9 +4,9 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { TILE_SIZE, WALL_HEIGHT, MOVE_SPEED, TURN_SPEED, LUCKY_CAT } from './constants.js';
 import { translations } from './i18n.js';
 import { levels } from './levels.js';
-import { createSolidMazeWalls } from './maze-walls.js';
+import { createSolidMazeWalls, setMazeWallTopMaterial } from './maze-walls.js?v=20261013-bold-arrow-roof-v2';
 import { createThirdPersonCameraController } from './third-person-camera.js';
-import { PLAYER_ARROW_PALETTE, createPlayerArrowModel } from './player-arrow.js';
+import { PLAYER_ARROW_PALETTE, createPlayerArrowModel } from './player-arrow.js?v=20261013-bold-arrow-roof-v2';
 
 // ====================================================================
 // 全局变量和状态机 (Global Variables & State Machine)
@@ -90,7 +90,7 @@ let previousGridPos = null;
 const keyState = { 'a': false, 'd': false, 'e': false, 'w': false, 'escape': false };
 let keyDebounce = false;
 
-let wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, floorMaterial, landmarkMaterial, goalWallMaterial;
+let wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, wallTopMaterial, floorMaterial, landmarkMaterial, goalWallMaterial;
 let hemisphereLight, dirLight;
 
 let customLevels = [];
@@ -103,7 +103,8 @@ let hintTimeout;
 let currentEditorMode = 'custom';
 
 // Texture customization variables
-let textureURLs = { floor: null, wallN: null, wallS: null, wallE: null, wallW: null };
+let textureURLs = { floor: null, wallN: null, wallS: null, wallE: null, wallW: null, wallTop: null };
+let textureSettingsGeneration = 0;
 let textureScales = { floor: 1, wall: 1 };
 
 // ====================================================================
@@ -430,19 +431,31 @@ document.getElementById('settings-button').addEventListener('click', () => {
 
     // Texture settings listeners
     const textureLoader = new THREE.TextureLoader();
-    const handleTextureUpload = (file, material, urlStorage, previewElement) => {
+    const handleTextureUpload = (file, material, urlStorage, previewElement, onLoaded = null) => {
         if (urlStorage) URL.revokeObjectURL(urlStorage);
 
         const newURL = URL.createObjectURL(file);
+        const generation = textureSettingsGeneration;
+        const requestId = (material.userData.textureRequestId || 0) + 1;
+        material.userData.textureRequestId = requestId;
         previewElement.style.backgroundImage = `url(${newURL})`;
         
-        const texture = textureLoader.load(newURL);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-
-        material.map = texture;
-        material.color.set(0xffffff); // Set to white to show full texture color
-        material.needsUpdate = true;
+        textureLoader.load(newURL, texture => {
+            if (generation !== textureSettingsGeneration || material.userData.textureRequestId !== requestId) {
+                texture.dispose();
+                return;
+            }
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.colorSpace = THREE.SRGBColorSpace;
+            material.userData.uploadedTexture?.dispose();
+            material.userData.uploadedTexture = texture;
+            material.map = texture;
+            material.color.set(0xffffff); // Show the image without a color tint.
+            material.needsUpdate = true;
+            updateTextureScales();
+            onLoaded?.();
+        });
         
         return newURL;
     };
@@ -477,6 +490,13 @@ document.getElementById('settings-button').addEventListener('click', () => {
             updateTextureScales();
         }
     });
+    document.getElementById('wall-top-texture-input').addEventListener('change', (e) => {
+        if (e.target.files[0]) {
+            textureURLs.wallTop = handleTextureUpload(e.target.files[0], wallTopMaterial, textureURLs.wallTop,
+                document.getElementById('wall-top-texture-preview'),
+                () => setMazeWallTopMaterial(mazeGroup, wallTopMaterial));
+        }
+    });
 
     document.getElementById('floor-scale-slider').addEventListener('input', (e) => {
         textureScales.floor = parseInt(e.target.value);
@@ -488,6 +508,7 @@ document.getElementById('settings-button').addEventListener('click', () => {
     });
     
     document.getElementById('reset-textures-btn').addEventListener('click', () => {
+        textureSettingsGeneration++;
         Object.keys(textureURLs).forEach(key => {
             if (textureURLs[key]) URL.revokeObjectURL(textureURLs[key]);
             textureURLs[key] = null;
@@ -501,11 +522,14 @@ document.getElementById('settings-button').addEventListener('click', () => {
         textureScales.floor = 1;
         textureScales.wall = 1;
 
+        [floorMaterial, wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, wallTopMaterial]
+            .forEach(material => material.userData.uploadedTexture?.dispose());
         createMaterials(); // Recreate materials with default colors
+        setMazeWallTopMaterial(mazeGroup, wallTopMaterial);
         
         // Reload maze to apply new materials
         if (gameState !== 'MAIN_MENU' && gameState !== 'STARTUP_MODAL') {
-            const currentLevelData = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : levels[currentLevelIndex];
+            const currentLevelData = (currentLevelIndex === -1) ? customLevels[selectedCustomMapIndex] : currentLevelIndex;
             loadLevel(currentLevelData);
         }
     });
@@ -515,7 +539,7 @@ function updateTextureScales() {
     if (floorMaterial.map) {
         floorMaterial.map.repeat.set(textureScales.floor, textureScales.floor);
     }
-    [wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW].forEach(mat => {
+    [wallMaterialN, wallMaterialS, wallMaterialE, wallMaterialW, wallTopMaterial].forEach(mat => {
          if (mat.map) {
             mat.map.repeat.set(textureScales.wall, textureScales.wall);
          }
@@ -547,7 +571,7 @@ function showMainMenu() {
     [mazeGroup, landmarksGroup, sceneryGroup, waypointsGroup, highlightFloorsGroup].forEach(group => {
         while (group.children.length > 0) {
             const child = group.children[0];
-            if (child.userData.solidMazeWalls) child.geometry.dispose();
+            if (child.userData.solidMazeWalls) child.traverse(mesh => mesh.geometry?.dispose());
             group.remove(child);
         }
     });
@@ -595,7 +619,7 @@ function loadLevel(levelData) {
     [mazeGroup, landmarksGroup, sceneryGroup, waypointsGroup, highlightFloorsGroup].forEach(group => {
         while (group.children.length > 0) {
             const child = group.children[0];
-            if (child.userData.solidMazeWalls) child.geometry.dispose();
+            if (child.userData.solidMazeWalls) child.traverse(mesh => mesh.geometry?.dispose());
             group.remove(child);
         }
     });
@@ -1165,7 +1189,7 @@ function createMazeMesh(grid, goal) {
         grid, goal, tileSize: TILE_SIZE, wallHeight: WALL_HEIGHT,
         materials: {
             north: wallMaterialN, south: wallMaterialS,
-            east: wallMaterialE, west: wallMaterialW, goal: goalWallMaterial
+            east: wallMaterialE, west: wallMaterialW, goal: goalWallMaterial, top: wallTopMaterial
         }
     }));
 }
@@ -1506,6 +1530,7 @@ function createMaterials() {
     wallMaterialS = new THREE.MeshStandardMaterial({ color: defaultWallColorS, roughness: 0.8, metalness: 0.2 });
     wallMaterialE = new THREE.MeshStandardMaterial({ color: defaultWallColorE, roughness: 0.8, metalness: 0.2 });
     wallMaterialW = new THREE.MeshStandardMaterial({ color: defaultWallColorW, roughness: 0.8, metalness: 0.2 });
+    wallTopMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.2 });
 
     const textureLoader = new THREE.TextureLoader();
     floorMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, roughness: 0.35 });

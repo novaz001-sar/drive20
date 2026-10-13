@@ -129,6 +129,13 @@
     </select>
 </div>
             <div class="settings-group texture-settings-group">
+                <label for="player-avatar-select" data-lang-zh="玩家形象" data-lang-en="Player Avatar">玩家形象</label>
+                <select id="player-avatar-select">
+                    <option value="minimap-arrow" data-lang-zh="立体箭头" data-lang-en="3D Arrow">立体箭头</option>
+                    <option value="sport-car" data-lang-zh="跑车" data-lang-en="Sports Car">跑车</option>
+                </select>
+            </div>
+            <div class="settings-group texture-settings-group">
                 <label data-lang-zh="纹理设置" data-lang-en="Texture Settings">纹理设置</label>
                 <div class="texture-input-row">
                     <label for="floor-texture-input" data-lang-zh="地面" data-lang-en="Floor">地面</label>
@@ -156,10 +163,16 @@
                     <span class="texture-preview" id="wall-w-texture-preview"></span>
                 </div>
                 
+                <div class="texture-input-row">
+                    <label for="wall-top-texture-input" data-lang-zh="墙顶" data-lang-en="Wall Top">墙顶</label>
+                    <input type="file" id="wall-top-texture-input" accept="image/*">
+                    <span class="texture-preview" id="wall-top-texture-preview"></span>
+                </div>
+
                 <label for="floor-scale-slider" data-lang-zh="地面纹理大小" data-lang-en="Floor Texture Size">地面纹理大小</label>
                 <input type="range" id="floor-scale-slider" min="1" max="10" step="1" value="1">
 
-                <label for="wall-scale-slider" data-lang-zh="墙面纹理大小" data-lang-en="Wall Texture Size">墙面纹理大小</label>
+                <label for="wall-scale-slider" data-lang-zh="墙面与墙顶纹理大小" data-lang-en="Wall and Wall Top Texture Size">墙面与墙顶纹理大小</label>
                 <input type="range" id="wall-scale-slider" min="1" max="10" step="1" value="1">
                  <button id="reset-textures-btn" class="secondary" data-lang-zh="恢复默认纹理" data-lang-en="Reset Textures">恢复默认纹理</button>
             </div>
@@ -306,6 +319,6 @@
             }
         }
     </script>
-    <script type="module" src="./src/js/main.js"></script>
+    <script type="module" src="./src/js/main.js?v=20261013-bold-arrow-roof-v2"></script>
 </body>
 </html>
